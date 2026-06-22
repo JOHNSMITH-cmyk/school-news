@@ -1,28 +1,54 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 
-async function getPosts() {
+export const dynamic = "force-dynamic";
+
+async function getHomeData() {
   try {
-    const [rows] = await db.query(
-      "SELECT id, title, content, image FROM posts ORDER BY id DESC"
+    const [posts] = await db.query(
+      `SELECT
+        posts.id,
+        posts.title,
+        posts.content,
+        posts.image,
+        posts.file_url,
+        categories.name AS category_name,
+        categories.slug AS category_slug
+      FROM posts
+      LEFT JOIN categories ON categories.id = posts.category_id
+      ORDER BY posts.id DESC`
+    );
+
+    const [categories] = await db.query(
+      `SELECT
+        categories.id,
+        categories.name,
+        categories.slug,
+        COUNT(posts.id) AS post_count
+      FROM categories
+      LEFT JOIN posts ON posts.category_id = categories.id
+      GROUP BY categories.id, categories.name, categories.slug
+      ORDER BY categories.id ASC`
     );
 
     return {
-      posts: rows,
+      posts,
+      categories,
       error: null,
     };
   } catch (error) {
-    console.error("Khong the lay danh sach bai viet:", error);
+    console.error("Khong the lay du lieu trang chu:", error);
 
     return {
       posts: [],
+      categories: [],
       error: error.message,
     };
   }
 }
 
 export default async function Home() {
-  const { posts, error } = await getPosts();
+  const { posts, categories, error } = await getHomeData();
   const [featuredPost, ...otherPosts] = posts;
 
   return (
@@ -62,7 +88,7 @@ export default async function Home() {
             <article className="grid gap-5 md:grid-cols-[1.2fr_0.8fr] md:items-end">
               <div>
                 <p className="text-sm font-bold uppercase tracking-wide text-fuchsia-950/70">
-                  Featured
+                  {featuredPost.category_name || "Featured"}
                 </p>
                 <h2 className="mt-3 text-3xl font-black text-zinc-950 sm:text-4xl">
                   {featuredPost.title}
@@ -70,7 +96,12 @@ export default async function Home() {
                 <p className="mt-4 line-clamp-3 text-base font-medium leading-7 text-zinc-800">
                   {featuredPost.content}
                 </p>
-              </div>
+                {featuredPost.file_url ? (
+                  <p className="mt-4 text-sm font-bold text-zinc-800">
+                    Co tep dinh kem tai xuong
+                  </p>
+                ) : null}
+                </div>
               <div className="rounded-lg border border-white/50 bg-gradient-to-br from-white/55 to-white/20 p-5 text-right">
                 <span className="text-sm font-semibold text-zinc-700">
                   Doc bai noi bat
@@ -87,6 +118,33 @@ export default async function Home() {
           </div>
         )}
 
+        {categories.length > 0 ? (
+          <section className="grid gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-white drop-shadow-sm">
+                Danh muc
+              </h2>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {categories.map((category) => (
+                <Link
+                  key={category.id}
+                  className="group rounded-lg border border-white/45 bg-white/30 p-5 shadow-xl shadow-cyan-950/10 backdrop-blur-xl transition duration-300 hover:scale-[1.03] hover:bg-white/45"
+                  href={`/categories/${category.slug}`}
+                >
+                  <div className="text-lg font-black text-zinc-950 transition group-hover:text-fuchsia-700">
+                    {category.name}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-zinc-700">
+                    {category.post_count} bai viet
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <div className="grid gap-4 md:grid-cols-2">
           {otherPosts.map((post) => (
             <Link
@@ -96,7 +154,7 @@ export default async function Home() {
             >
               <article>
                 <div className="mb-4 inline-flex rounded-full bg-white/45 px-3 py-1 text-xs font-bold uppercase tracking-wide text-violet-950">
-                  Bai viet
+                  {post.category_name || "Bai viet"}
                 </div>
                 <h2 className="text-xl font-black text-zinc-950 transition duration-300 group-hover:text-fuchsia-700">
                   {post.title}
@@ -104,6 +162,11 @@ export default async function Home() {
                 <p className="mt-3 line-clamp-2 text-sm font-medium leading-6 text-zinc-700">
                   {post.content}
                 </p>
+                {post.file_url ? (
+                  <p className="mt-3 text-xs font-bold uppercase tracking-wide text-zinc-700">
+                    Co tep dinh kem
+                  </p>
+                ) : null}
               </article>
             </Link>
           ))}

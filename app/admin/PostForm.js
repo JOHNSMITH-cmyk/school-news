@@ -3,11 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export default function PostForm() {
+export default function PostForm({ categories }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [image, setImage] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [file, setFile] = useState(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -17,12 +20,19 @@ export default function PostForm() {
     setIsSubmitting(true);
 
     try {
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("content", content);
+      formData.append("image", image);
+      formData.append("category_id", categoryId);
+
+      if (file) {
+        formData.append("file", file);
+      }
+
       const response = await fetch("/api/posts", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ title, content, image }),
+        body: formData,
       });
 
       const result = await response.json();
@@ -35,6 +45,9 @@ export default function PostForm() {
       setTitle("");
       setContent("");
       setImage("");
+      setCategoryId("");
+      setFile(null);
+      setFileInputKey((value) => value + 1);
       setMessage("Da them bai viet");
       router.refresh();
     } catch (error) {
@@ -86,6 +99,44 @@ export default function PostForm() {
           onChange={(event) => setImage(event.target.value)}
           placeholder="https://..."
         />
+      </div>
+
+      <div>
+        <label
+          className="block text-sm font-medium text-zinc-700"
+          htmlFor="category"
+        >
+          Danh muc
+        </label>
+        <select
+          id="category"
+          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-950 outline-none focus:border-zinc-950"
+          value={categoryId}
+          onChange={(event) => setCategoryId(event.target.value)}
+        >
+          <option value="">Chon danh muc</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-zinc-700" htmlFor="file">
+          Tep dinh kem
+        </label>
+        <input
+          key={fileInputKey}
+          id="file"
+          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-zinc-950 outline-none file:mr-3 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white focus:border-zinc-950"
+          onChange={(event) => setFile(event.target.files?.[0] || null)}
+          type="file"
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          Toi da 10MB. Nguoi xem co the tai tep nay trong trang bai viet.
+        </p>
       </div>
 
       <div className="flex items-center gap-3">

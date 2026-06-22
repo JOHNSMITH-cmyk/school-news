@@ -1,8 +1,71 @@
+import path from "path";
+import { mkdir, writeFile } from "fs/promises";
 import { db } from "@/lib/db";
+
+export const runtime = "nodejs";
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+function safeFileName(name) {
+  const extension = path.extname(name);
+  const baseName = path
+    .basename(name, extension)
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60);
+
+  return `${Date.now()}-${baseName || "file"}${extension}`;
+}
+
+async function saveUpload(file) {
+  if (!file || file.size === 0) {
+    return null;
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("Tep tai len khong duoc vuot qua 10MB");
+  }
+
+  const uploadDir = path.join(process.cwd(), "public", "uploads");
+  await mkdir(uploadDir, { recursive: true });
+
+  const fileName = safeFileName(file.name);
+  const bytes = Buffer.from(await file.arrayBuffer());
+  await writeFile(path.join(uploadDir, fileName), bytes);
+
+  return `/uploads/${fileName}`;
+}
+
+async function getPostBody(req) {
+  const contentType = req.headers.get("content-type") || "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await req.formData();
+    const file = formData.get("file");
+
+    return {
+      title: formData.get("title")?.toString(),
+      content: formData.get("content")?.toString(),
+      image: formData.get("image")?.toString(),
+      category_id: formData.get("category_id")?.toString(),
+      file_url: await saveUpload(file),
+    };
+  }
+
+  return req.json();
+}
 
 export async function GET() {
   try {
-    const [rows] = await db.query("SELECT * FROM posts ORDER BY id DESC");
+    const [rows] = await db.query(
+      `SELECT
+        posts.*,
+        categories.name AS category_name,
+        categories.slug AS category_slug
+      FROM posts
+      LEFT JOIN categories ON categories.id = posts.category_id
+      ORDER BY posts.id DESC`
+    );
 
     return Response.json({
       success: true,
@@ -21,8 +84,8 @@ export async function GET() {
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const { title, content, image } = body;
+    const body = await getPostBody(req);
+    const { title, content, image, category_id, file_url } = body;
 
     if (!title || !content) {
       return Response.json(
@@ -35,8 +98,8 @@ export async function POST(req) {
     }
 
     await db.execute(
-      "INSERT INTO posts (title, content, image) VALUES (?, ?, ?)",
-      [title, content, image ?? null]
+      "INSERT INTO posts (title, content, image, category_id, file_url) VALUES (?, ?, ?, ?, ?)",
+      [title, content, image || null, category_id || null, file_url || null]
     );
 
     return Response.json({

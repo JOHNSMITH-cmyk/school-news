@@ -17,11 +17,24 @@ export default async function AdminPage() {
   }
 
   let posts = [];
+  let categories = [];
   let dbError = null;
 
   try {
     [posts] = await db.query(
-      "SELECT id, title, content, image FROM posts ORDER BY id DESC"
+      `SELECT
+        posts.id,
+        posts.title,
+        posts.content,
+        posts.image,
+        posts.file_url,
+        categories.name AS category_name
+      FROM posts
+      LEFT JOIN categories ON categories.id = posts.category_id
+      ORDER BY posts.id DESC`
+    );
+    [categories] = await db.query(
+      "SELECT id, name, slug FROM categories ORDER BY id ASC"
     );
   } catch (error) {
     dbError = error.message;
@@ -56,13 +69,14 @@ export default async function AdminPage() {
 
         <section className="grid gap-3 rounded-lg border border-white/45 bg-white/25 p-6 shadow-xl shadow-cyan-950/10 backdrop-blur-xl">
           <h2 className="text-xl font-black text-white">Them bai viet</h2>
-          <PostForm />
+          <PostForm categories={categories} />
         </section>
 
         <section className="grid gap-3">
           <h2 className="text-xl font-black text-white drop-shadow-sm">
             Bai viet hien co
           </h2>
+
           {dbError ? (
             <div className="rounded-lg border border-red-200/70 bg-white/45 p-5 text-zinc-900 shadow-xl shadow-red-950/10 backdrop-blur-xl">
               <h3 className="font-black text-red-600">
@@ -77,6 +91,7 @@ export default async function AdminPage() {
               </p>
             </div>
           ) : null}
+
           <div className="grid gap-4">
             {posts.map((post) => (
               <article
@@ -85,11 +100,24 @@ export default async function AdminPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
+                    <div className="mb-2 inline-flex rounded-full bg-white/45 px-3 py-1 text-xs font-bold uppercase tracking-wide text-violet-950">
+                      {post.category_name || "Chua co danh muc"}
+                    </div>
                     <h3 className="font-black text-zinc-950">{post.title}</h3>
                     <p className="mt-2 line-clamp-2 text-sm font-medium leading-6 text-zinc-700">
                       {post.content}
                     </p>
+                    {post.file_url ? (
+                      <a
+                        className="mt-3 inline-flex rounded-md border border-white/50 bg-white/35 px-3 py-1.5 text-sm font-bold text-zinc-800 transition hover:scale-105 hover:bg-white/55"
+                        href={post.file_url}
+                        target="_blank"
+                      >
+                        Xem tep dinh kem
+                      </a>
+                    ) : null}
                   </div>
+
                   <div className="flex shrink-0 items-center gap-2">
                     <Link
                       className="rounded-md border border-white/50 bg-white/35 px-3 py-1.5 text-sm font-bold text-zinc-800 transition hover:scale-105 hover:bg-white/55"
